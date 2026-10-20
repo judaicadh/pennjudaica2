@@ -137,9 +137,10 @@ its validated package directly to GitHub Pages. A token-created commit does not 
 to trigger another workflow. Enable Actions, workflow write access, and Pages with
 **GitHub Actions** as its source when publishing this revised site.
 
-**Current status:** prepared locally, not active. The existing GitHub remote contains
-a different Astro site. Publishing the revised site and installing this workflow on
-the intended default branch is a separate step; local preview changes do not enable it.
+**Current status:** the revised portal is merged locally into `master`, the
+publishing/default branch. Pushing that merge installs the nightly workflow and
+publishes the revised static site through `static.yml`. The legacy Astro and
+weekly data.js workflows are retired. No remote settings changes are required.
 
 ## Penn Digital Collections — `harvest_digitalcollections.py`
 
