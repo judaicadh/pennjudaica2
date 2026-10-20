@@ -1,13 +1,13 @@
 {
   "name": "Judaica",
-  "type": "module",
+  "type": "commonjs",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
+    "dev": "python3 -m http.server 8765",
+    "start": "python3 -m http.server 8765",
+    "preview": "python3 -m http.server 8765",
+    "build": "python3 scripts/nightly_site.py --baseline items.json --out dist",
+    "test": "node tests/test_search.cjs"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.31.1",
@@ -25,5 +25,6 @@
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16"
-  }
+  },
+  "private": true
 }
