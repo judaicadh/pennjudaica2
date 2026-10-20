@@ -33,6 +33,7 @@
     q: "", sort: "relevance",
     filters: { collection: new Set(), system: new Set(), source: new Set(), type: new Set(), region: new Set(), lang: new Set() },
     adv: emptyAdv(),
+    mapLocation: "",
     saved: new Set(),
     view: "search",
     page: 1
@@ -64,7 +65,7 @@
   }
   function substringMatch(it, q) {
     if (!q) return true; q = q.toLowerCase();
-    return [it.title, it.creator, it.desc, it.place, it.region, it.collection, it.lang, it.type, it.dateText, it.callno, (it.people || []).join(" "), (it.subjects || []).join(" "), (it.corpnames || []).join(" "), (it.places || []).join(" ")].join(" ").toLowerCase().indexOf(q) !== -1;
+    return [it.title, it.creator, it.desc, it.place, it.placeDisplay, it.mapLabel, it.region, it.collection, it.lang, it.type, it.dateText, it.callno, (it.people || []).join(" "), (it.subjects || []).join(" "), (it.corpnames || []).join(" "), (it.places || []).join(" ")].join(" ").toLowerCase().indexOf(q) !== -1;
   }
   function facetValues(it, key) {
     var arrays = {collection:"collections",type:"formats",lang:"languages",region:"regions"};
@@ -72,6 +73,15 @@
   }
   function matchesFacet(it, key, selected) {
     return !selected.size || facetValues(it, key).some(function(v) { return selected.has(v); });
+  }
+  function locationKey(it) {
+    return typeof it.lat === "number" && typeof it.lng === "number" ? it.lat.toFixed(2) + "," + it.lng.toFixed(2) : "";
+  }
+  function passesLocation(it) { return !state.mapLocation || locationKey(it) === state.mapLocation; }
+  function mapResultsLink(key) {
+    var params = new URLSearchParams(location.hash.replace(/^#/, ""));
+    params.delete("view"); params.delete("item"); params.set("mapLocation", key);
+    return "#" + params.toString();
   }
   function passesFacets(it) { return FACET_FIELDS.every(function (f) { var s = state.filters[f.key]; return matchesFacet(it, f.key, s); }); }
   function passesAdv(it) {
@@ -101,7 +111,7 @@
     } else {
       pool = ITEMS.filter(function (it) { return substringMatch(it, state.q); });
     }
-    return pool.filter(function (it) { return passesFacets(it) && passesAdv(it); });
+    return pool.filter(function (it) { return passesLocation(it) && passesFacets(it) && passesAdv(it); });
   }
   function sortItems(arr) {
     var s = state.sort, a = arr.slice();
@@ -118,6 +128,7 @@
     if (restoring) return;
     var p = [];
     if (state.view && state.view !== "search") p.push("view=" + state.view);
+    if (state.mapLocation) p.push("mapLocation=" + encodeURIComponent(state.mapLocation));
     if (state.q) p.push("q=" + encodeURIComponent(state.q));
     FACET_FIELDS.forEach(function (f) {
       if (state.filters[f.key].size) p.push(f.key + "=" + encodeURIComponent(Array.from(state.filters[f.key]).join("|")));
@@ -132,7 +143,7 @@
     restoring = true;
     var h = location.hash.replace(/^#/, "");
     state.adv = emptyAdv();
-    state.q = ""; state.sort = "relevance"; state.view = "search";
+    state.q = ""; state.sort = "relevance"; state.view = "search"; state.mapLocation = "";
     FACET_FIELDS.forEach(function (f) { state.filters[f.key] = new Set(); });
     var openItem = null, view = "search";
     if (h) h.split("&").forEach(function (pair) {
@@ -144,6 +155,7 @@
         state.adv[field] = field === "iiif" ? v === "true" : (field === "from" || field === "to" ? (/^\d+$/.test(v) ? Number(v) : null) : v);
       }
       else if (k === "q") state.q = v;
+      else if (k === "mapLocation" && /^-?\d+\.\d{2},-?\d+\.\d{2}$/.test(v)) state.mapLocation = v;
       else if (k === "sort") state.sort = v;
       else if (k === "view") view = v;
       else if (k === "item") openItem = parseInt(v, 10);
@@ -165,7 +177,7 @@
     var ids = miniHits(state.q);
     var byId = ids ? new Map(ITEMS.map(function (it) { return [it.id, it]; })) : null;
     var candidates = ids ? ids.map(function (id) { return byId.get(id); }).filter(Boolean) : ITEMS.filter(function(it) { return substringMatch(it, state.q); });
-    candidates = candidates.filter(function (it) { return passesAdv(it); });
+    candidates = candidates.filter(function (it) { return passesLocation(it) && passesAdv(it); });
     FACET_FIELDS.forEach(function (f) {
       var pool = candidates.filter(function (it) {
         return FACET_FIELDS.every(function (g) { return g.key === f.key ? true : matchesFacet(it, g.key, state.filters[g.key]); });
@@ -193,6 +205,10 @@
         host.innerHTML += '<span class="pill">' + esc(lbl) + ' <span class="x" onclick="PJPapp.removeFilter(\'' + f.key + "','" + esc(v) + '\')">×</span></span>';
       });
     });
+    if (state.mapLocation) {
+      var names = Array.from(new Set(ITEMS.filter(passesLocation).map(function(it) { return it.mapLabel || it.placeDisplay || "Map location"; }))).slice(0,2).join(" / ");
+      host.innerHTML += '<span class="pill">Map location: ' + esc(names || state.mapLocation) + ' <button type="button" aria-label="Remove map location filter" class="text-action" onclick="PJPapp.clearMapLocation()">×</button></span>';
+    }
     var a = state.adv;
     [a.key && ["key", "keyword: " + a.key], a.title && ["title", "title: " + a.title], a.creator && ["creator", "creator: " + a.creator],
      (a.from != null) && ["from", "from " + a.from], (a.to != null) && ["to", "to " + a.to], a.lang && ["lang", a.lang], a.type && ["type", a.type],
@@ -287,9 +303,9 @@
     var byCoord = {};
     items.forEach(function (it) {
       if (typeof it.lat !== "number" || typeof it.lng !== "number") return; // skip un-geocoded
-      var key = it.lat.toFixed(2) + "," + it.lng.toFixed(2);
+      var key = locationKey(it);
       var g = byCoord[key] || (byCoord[key] = { lat: it.lat, lng: it.lng, places: {}, items: [] });
-      g.items.push(it); g.places[it.place] = 1;
+      g.items.push(it); g.places[it.mapLabel || it.placeDisplay || "Map location"] = 1;
     });
     Object.keys(byCoord).forEach(function (k) {
       var g = byCoord[k], n = g.items.length, size = n < 10 ? 30 : n < 100 ? 38 : 46;
@@ -299,7 +315,7 @@
       });
       var places = Object.keys(g.places).slice(0, 4).join(", ");
       var list = g.items.slice(0, 6).map(function (it) { return '<span class="pop-link" onclick="PJPapp.openItem(' + it.id + ')">› ' + esc(it.title) + "</span>"; }).join("");
-      var more = g.items.length > 6 ? '<div class="pop-meta">+ ' + (g.items.length - 6) + " more</div>" : "";
+      var more = '<a class="pop-more" href="' + esc(mapResultsLink(k)) + '">' + (n > 6 ? (n - 6) + ' more · ' : '') + 'View all ' + n + ' items →</a>';
       marker.bindPopup('<div class="pop-title">' + esc(places) + '</div><div class="pop-meta">' + n + " item" + (n > 1 ? "s" : "") + "</div>" + list + more);
       markerLayer.addLayer(marker);
     });
@@ -321,11 +337,14 @@
   ];
   function drawTimeline(items) {
     var host = $("timeline"); host.innerHTML = "";
+    var eraLinks = [];
     ERAS.forEach(function (e) {
       var inEra = items.filter(function (it) { return (it.yearStart || 0) >= e.from && (it.yearStart || 0) <= e.to; }).sort(function (a, b) { return a.year - b.year; });
       // never show an empty "Undated" scaffold row
       if (e.to === 0 && !inEra.length) return;
-      var row = document.createElement("div"); row.className = "era-row";
+      var eraId = "era-" + e.from;
+      eraLinks.push('<button type="button" data-era="' + eraId + '" onclick="PJPapp.jumpEra(this.dataset.era)"><span>' + e.yr + '</span><small>' + inEra.length.toLocaleString() + '</small></button>');
+      var row = document.createElement("section"); row.className = "era-row"; row.id = eraId; row.setAttribute("aria-label",e.yr);
       var ERA_CAP = 48;
       var chips = inEra.slice(0, ERA_CAP).map(function (it) {
         var t = it.title.length > 40 ? it.title.slice(0, 38) + "…" : it.title;
@@ -336,6 +355,7 @@
       row.innerHTML = '<div class="era-label"><div class="yr">' + e.yr + '</div><div class="nm">' + e.nm + '</div></div><div class="era-items">' + chips + "</div>";
       host.appendChild(row);
     });
+    $("eraLinks").innerHTML = eraLinks.join("");
   }
 
   /* ---------------- highlights ---------------- */
@@ -433,7 +453,7 @@
       $("mMeta").innerHTML =
         '<table class="meta-table"><tbody>' +
         '<tr><td class="k">Date</td><td class="v">' + esc(it.dateText) + "</td></tr>" +
-        '<tr><td class="k">Place</td><td class="v">' + esc(it.place) + "</td></tr>" +
+        '<tr><td class="k">Place</td><td class="v">' + esc(it.placeDisplay || it.place) + (it.placeDisplay && it.placeDisplay !== it.place ? '<details class="catalog-place"><summary>Original catalog places</summary>' + esc(it.place) + '</details>' : '') + "</td></tr>" +
         '<tr><td class="k">Language</td><td class="v">' + esc(it.lang) + "</td></tr>" +
         '<tr><td class="k">Format</td><td class="v">' + esc(it.type) + "</td></tr>" +
         '<tr><td class="k">Collection</td><td class="v">' + esc(it.collection) + "</td></tr>" +
@@ -581,6 +601,14 @@
 
   /* ---------------- public API (for inline handlers) ---------------- */
   window.PJPapp = {
+    jumpEra: function(id) {
+      var target = $(id); if (!target) return;
+      target.scrollIntoView({behavior:"auto",block:"start"});
+      document.querySelectorAll(".era-nav button").forEach(function(button) {
+        if (button.dataset.era === id) button.setAttribute("aria-current","location");
+        else button.removeAttribute("aria-current");
+      });
+    },
     imagesOnly: function(on) { state.adv.iiif = on; render(); },
     sourceView: function(system) { state.filters.system = new Set(system ? [system] : []); setView("search"); render(); },
     doSearch: function () { clearTimeout(searchTimer); state.q = $("q").value.trim(); setView("search"); render(); },
@@ -590,8 +618,9 @@
     loadMore: function () { state.page++; render(true); },
     toggleFacet: function (key, val, on) { if (on) state.filters[key].add(val); else state.filters[key].delete(val); render(); },
     removeFilter: function (key, val) { state.filters[key].delete(val); render(); },
+    clearMapLocation: function () { state.mapLocation = ""; render(); },
     clearQuery: function () { state.q = ""; $("q").value = ""; render(); },
-    clearAll: function () { state.q = ""; $("q").value = ""; FACET_FIELDS.forEach(function (f) { state.filters[f.key] = new Set(); }); state.adv = emptyAdv(); render(); },
+    clearAll: function () { state.mapLocation = ""; state.q = ""; $("q").value = ""; FACET_FIELDS.forEach(function (f) { state.filters[f.key] = new Set(); }); state.adv = emptyAdv(); render(); },
     clearAdvField: function (k) { state.adv[k] = (k === "iiif" ? false : (k === "from" || k === "to" ? null : "")); render(); },
     openItem: function (id) { openItem2(id); },
     closeModal: closeModal,
@@ -645,7 +674,7 @@
     }
     mini = new MiniSearch({
       idField: "id",
-      fields: ["title", "creator", "desc", "place", "region", "collection",
+      fields: ["title", "creator", "desc", "place", "placeDisplay", "mapLabel", "region", "collection",
                "lang", "type", "dateText", "callno",
                "people", "corpnames", "subjects", "places"],
       storeFields: [],
@@ -701,7 +730,12 @@
         else if (e.key === "ArrowLeft") { e.preventDefault(); goToPage(viewerIndex - 1); }
       }
     });
-    window.addEventListener("hashchange", function () { if (!restoring) readHash(); });
+    window.addEventListener("hashchange", function () {
+      if (!restoring) {
+        readHash(); render();
+        if (state.view === "search" && state.mapLocation) $("view-search").scrollIntoView({behavior:"smooth",block:"start"});
+      }
+    });
   }
 
   function boot() {

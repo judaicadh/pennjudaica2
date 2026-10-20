@@ -101,9 +101,9 @@
 <!-- MAP -->
 <div class="wrap" id="view-map" style="display:none;grid-template-columns:1fr">
   <main>
-    <div class="results-head"><div class="count">Items plotted by place of origin. Click a marker to preview, then open the full record.</div></div>
+    <div class="results-head"><div class="count">Explore places named in the catalog. Click a marker to preview its items or browse the full list.</div></div>
     <div id="map"></div>
-    <p class="map-legend">Marker size reflects the number of items from each place. Records without mapped locations remain available in search results.</p>
+    <p class="map-legend">Each item is mapped once, at its first resolved catalog location. Other place mentions and the original wording remain in the record. Unresolved places remain searchable.</p>
   </main>
 </div>
 
@@ -111,7 +111,7 @@
 <div class="wrap" id="view-timeline" style="display:none;grid-template-columns:1fr">
   <main>
     <div class="results-head"><div class="count">Dates follow source descriptions. Ranges appear once, at their earliest possible year; original dates and uncertainty are retained. Dates without a supported Gregorian equivalent appear under Undated / unresolved. Click an item to read its record.</div></div>
-    <div class="timeline-wrap" id="timeline"></div>
+    <div class="timeline-layout"><nav class="era-nav" aria-label="Jump to an era"><h2>Jump to an era</h2><div id="eraLinks"></div></nav><div class="timeline-wrap" id="timeline"></div></div>
   </main>
 </div>
 

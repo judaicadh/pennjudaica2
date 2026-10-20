@@ -31,6 +31,7 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(date_range('n.d.')[:2], (0,0))
 
     def test_uncertain_decades_and_folio_numbers(self):
+        self.assertEqual(date_range('5605 or 565- Adar 5 [1845 February 12 or 189-]')[:2], (1845,1899))
         self.assertEqual(date_range('186X~')[:2], (1860,1869))
         self.assertEqual(date_range('1912/191X')[:2], (1910,1919))
         self.assertEqual(date_range('colophon dated 1446 (f. 250v); pages (f. 251r-269r)')[:2], (1446,1446))

@@ -61,64 +61,7 @@ REPO_SOURCE = {
 
 # place string (substring, lowercased) -> (region label, lat, lng).
 # First substring that appears in the place wins; specific entries before broad.
-GAZETTEER = [
-    ("kaifeng",        ("China", 34.80, 114.35)),
-    ("china",          ("China", 34.80, 114.35)),
-    ("jerusalem",      ("Land of Israel", 31.78, 35.22)),
-    ("safed",          ("Land of Israel", 32.97, 35.50)),
-    ("tiberias",       ("Land of Israel", 32.79, 35.53)),
-    ("jaffa",          ("Land of Israel", 32.05, 34.75)),
-    ("hebron",         ("Land of Israel", 31.53, 35.10)),
-    ("palestine",      ("Land of Israel", 31.50, 35.00)),
-    ("israel",         ("Land of Israel", 31.50, 35.00)),
-    ("cairo",          ("Egypt", 30.04, 31.24)),
-    ("fustat",         ("Egypt", 30.01, 31.23)),
-    ("alexandria",     ("Egypt", 31.20, 29.92)),
-    ("egypt",          ("Egypt", 30.04, 31.24)),
-    ("yemen",          ("Yemen", 15.55, 48.52)),
-    ("san'a",          ("Yemen", 15.37, 44.19)),
-    ("baghdad",        ("Iraq", 33.32, 44.36)),
-    ("iraq",           ("Iraq", 33.22, 43.68)),
-    ("isfahan",        ("Iran", 32.65, 51.67)),
-    ("persia",         ("Iran", 32.43, 53.69)),
-    ("iran",           ("Iran", 32.43, 53.69)),
-    ("istanbul",       ("Turkey", 41.01, 28.98)),
-    ("constantinople", ("Turkey", 41.01, 28.98)),
-    ("salonika",       ("Greece", 40.64, 22.94)),
-    ("ottoman",        ("Turkey", 39.00, 35.24)),
-    ("turkey",         ("Turkey", 39.00, 35.24)),
-    ("morocco",        ("Morocco", 31.79, -7.09)),
-    ("tunis",          ("Tunisia", 36.81, 10.18)),
-    ("cochin",         ("India", 9.93, 76.27)),
-    ("calcutta",       ("India", 22.57, 88.36)),
-    ("bombay",         ("India", 19.08, 72.88)),
-    ("india",          ("India", 22.00, 79.00)),
-    ("amsterdam",      ("Netherlands", 52.37, 4.90)),
-    ("netherlands",    ("Netherlands", 52.13, 5.29)),
-    ("holland",        ("Netherlands", 52.13, 5.29)),
-    ("venice",         ("Italy", 45.44, 12.32)),
-    ("rome",           ("Italy", 41.90, 12.50)),
-    ("livorno",        ("Italy", 43.55, 10.31)),
-    ("italy",          ("Italy", 41.90, 12.50)),
-    ("solsona",        ("Spain", 41.99, 1.52)),
-    ("barcelona",      ("Spain", 41.39, 2.17)),
-    ("toledo",         ("Spain", 39.86, -4.02)),
-    ("spain",          ("Spain", 40.00, -3.70)),
-    ("portugal",       ("Portugal", 39.40, -8.22)),
-    ("london",         ("England", 51.51, -0.13)),
-    ("england",        ("England", 52.30, -1.20)),
-    ("united kingdom", ("England", 52.30, -1.20)),
-    ("paris",          ("France", 48.86, 2.35)),
-    ("france",         ("France", 46.60, 2.30)),
-    ("prague",         ("Czech lands", 50.08, 14.44)),
-    ("vienna",         ("Austria", 48.21, 16.37)),
-    ("germany",        ("Germany", 51.10, 10.40)),
-    ("poland",         ("Poland", 52.00, 19.00)),
-    ("philadelphia",   ("United States", 39.95, -75.16)),
-    ("new york",       ("United States", 40.71, -74.01)),
-    ("united states",  ("United States", 39.83, -98.58)),
-    ("america",        ("United States", 39.83, -98.58)),
-]
+from places import GAZETTEER, resolve_place
 
 HEADERS = {"User-Agent": "PennJudaicaPortal-harvester/1.0 (+https://openn.library.upenn.edu)"}
 SESSION = requests.Session()
@@ -245,12 +188,11 @@ def parse_year(date_text):
     return 0
 
 def geocode(place):
-    p = (place or "").lower()
-    for needle, (region, lat, lng) in GAZETTEER:
-        if needle in p:
-            return region, lat, lng
-    # unknown: keep the place as its own region so the facet still works
-    return (place.strip() or "Unknown"), None, None
+    resolved = resolve_place(place)
+    if resolved:
+        return resolved['country'], resolved['lat'], resolved['lng']
+    return (place or '').strip() or 'Unknown', None, None
+
 
 def parse_object(repo, obj, forced_source):
     url = "%s/Data/%s/html/%s.html" % (OP, repo, obj)

@@ -1,5 +1,6 @@
 """Conservative date interpretation and independently searchable metadata values."""
 import re
+from places import resolve_place
 
 
 def split_values(value):
@@ -71,11 +72,12 @@ def date_range(text):
             elif 'first half' in s: end -= 50
         return max(1,start), end, 'approximate range'
     s = re.sub(r'\bf{1,2}\.\s*\d+[rv]?(?:\s*[-–]\s*\d+[rv]?)?', '', s)
-    uncertain = re.search(r'\b(\d{3})x\b', s)
+    uncertain = re.search(r'\b(\d{2,3})(?:x+|-{1,2})(?![\d\w])', s)
     if uncertain:
-        start = int(uncertain[1])*10
+        scale = 10 ** (4-len(uncertain[1]))
+        start = int(uncertain[1])*scale
         exact = [int(v) for v in re.findall(r'\b(\d{4})\b', s)]
-        return min([start]+exact), max([start+9]+exact), 'approximate range'
+        return min([start]+exact), max([start+scale-1]+exact), 'approximate range'
     years = [int(v) for v in re.findall(r'\b(\d{3,4})\b', s)]
     years = [v for v in years if 1 <= v <= 2100]
     if not years:
@@ -98,6 +100,14 @@ def date_range(text):
 
 
 def enrich(item):
+    resolved = resolve_place(item.get('place'))
+    if resolved:
+        item.update(mapLabel=resolved['label'], placeDisplay=resolved['label'],
+                    region=resolved['country'], lat=resolved['lat'], lng=resolved['lng'])
+    else:
+        display = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', str(item.get('place') or 'Unknown').split(';')[0]).strip()
+        item.update(mapLabel='', placeDisplay=display, lat=None, lng=None)
+
     memberships = split_values(item.get('collection') or item.get('collections'))
     def collection_name(value):
         if value.lower().removeprefix('the ') == 'jesselson family collection of isaac leeser material':

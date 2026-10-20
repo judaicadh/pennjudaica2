@@ -202,7 +202,7 @@ def build(raw_dir, out_path):
         "id", "system", "source", "collection", "manifest", "rights", "digital_id", "manifestStatus",
         "title", "creator", "year", "dateText", "yearStart", "yearEnd", "dateStatus",
         "collections", "types", "formats", "languages", "regions",
-        "place", "region", "lat", "lng",
+        "place", "placeDisplay", "mapLabel", "region", "lat", "lng",
         "lang", "type", "iiif", "img",
         "srcUrl", "callno", "desc",
         # finding-aid extras: short scalars + narrative sections + subject headings

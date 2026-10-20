@@ -109,3 +109,9 @@ values. Sixteen format groups combine related source terms without discarding th
 Facets and advanced search match any membership of a record, counting it once per
 value; collection totals can overlap. Advanced search separates source system,
 repository group, and named collection, with a collection-name filter.
+
+Map labels and placement use `places.py`: separate catalog headings, recover joined
+place-name boundaries, prefer cities to countries, and respect country context.
+Unresolved places stay searchable without a speculative marker. `mapLabel` and
+`placeDisplay` are presentation fields; `place` retains the original catalog text.
+Barcelona, Venezuela is disambiguated using the GeoNames coordinates cited in that file.
