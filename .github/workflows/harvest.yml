@@ -1,0 +1,93 @@
+name: Nightly collection refresh
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+      timezone: "America/New_York"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collection-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Preserve the current index for comparison
+        run: cp items.json "$RUNNER_TEMP/previous-items.json"
+
+      # Each run starts with fresh raw data; no stale item cache is restored.
+      - name: Harvest OPenn
+        run: python harvest_openn.py --out raw/openn.jsonl
+
+      - name: Harvest Digital Collections
+        run: python harvest_digitalcollections.py --workers 4 --out raw/digitalcollections.jsonl
+
+      - name: Harvest Finding Aids
+        run: python harvest_findingaids.py --out raw/findingaids.jsonl
+
+      - name: Build the unified index
+        run: python build.py --raw raw --out items.json
+
+      - name: Validate the harvest and package the public site
+        run: python scripts/nightly_site.py --baseline "$RUNNER_TEMP/previous-items.json" --out _site
+
+      - name: Commit refreshed index and page data
+        if: github.ref_name == github.event.repository.default_branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- items.json records/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: nightly collection refresh $(date -u +%Y-%m-%d)"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      # Deploy explicitly: commits made with GITHUB_TOKEN do not start push workflows.
+      - name: Upload the static site for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Save the coverage audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection-coverage-${{ github.run_id }}
+          path: raw/digitalcollections.audit.json
+          retention-days: 30
+
+  deploy:
+    if: github.ref_name == github.event.repository.default_branch
+    needs: harvest
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the validated site
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penn Judaica · Collections &amp; Archives</title>
+<meta name="description" content="Explore Judaica across Penn Digital Collections, OPenn, and archival finding aids in one searchable research portal.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="milgroym.css">
+</head>
+<body>
+<a class="skip-link" href="#view-search">Skip to collections</a>
+
+<div class="concept-bar"><b>INDEPENDENT RESEARCH PROTOTYPE</b> <span>· Bringing Penn’s Judaica collections together</span></div>
+
+<header class="masthead">
+  <div class="mast-row">
+    <a class="brand" href="./" aria-label="Penn Judaica home">
+      <span class="pomegranate-woodcut brand-mark" aria-hidden="true"></span>
+      <div class="mast-title"><h1>Penn Judaica</h1><span class="mast-sub">Collections &amp; archives</span></div>
+    </a>
+    <div class="mast-actions">
+      <button class="saved-btn" onclick="PJPapp.setView('saved')"><span>♡ Saved</span><span class="badge" id="savedBadge">0</span></button>
+    </div>
+  </div>
+</header>
+
+<nav class="tabsbar" aria-label="Browse collections by view">
+  <div class="tabs">
+    <button class="tab active" data-v="search" onclick="PJPapp.setView('search')">Search &amp; Browse</button>
+    <button class="tab" data-v="map" onclick="PJPapp.setView('map')">Map</button>
+    <button class="tab" data-v="timeline" onclick="PJPapp.setView('timeline')">Timeline</button>
+    <button class="tab" data-v="highlights" onclick="PJPapp.setView('highlights')">Highlights</button>
+    <button class="tab" data-v="saved" onclick="PJPapp.setView('saved')">Saved<span class="tcount" id="savedTabCount">0</span></button>
+  </div>
+</nav>
+
+<section class="hero" id="searchIntro">
+  <div class="hero-layout">
+  <div class="hero-inner">
+    <div class="eyebrow">Penn Libraries &amp; partner collections</div>
+    <h2 class="serif">Judaica, across<br>the collections.</h2>
+    <p class="lede">Digitized books, manuscripts, photographs, and archival finding aids, searchable together.</p>
+    <div class="searchbox" role="search">
+      <svg class="mag" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="q" aria-label="Search all indexed collections" type="search" placeholder="Search ketubot, manuscripts, letters, places, communities…" autocomplete="off">
+      <button class="go" onclick="PJPapp.doSearch()">Search</button>
+    </div>
+    <div class="hero-meta">
+      <span class="adv-link"><button type="button" class="text-action" onclick="PJPapp.openAdv()">Advanced search</button></span>
+      <span class="scope-note"><span id="queryFeedback" role="status"></span><b id="totalCount">0</b> indexed records · <span id="collectionCount">0</span> collections · <span id="systemCount">0</span> sources</span>
+    </div>
+    <div class="chips">
+      <button type="button" class="chip" onclick="PJPapp.quick('Genizah')">Cairo Genizah</button>
+      <button type="button" class="chip" onclick="PJPapp.quick('ketubah')">Ketubot</button>
+      <button type="button" class="chip" onclick="PJPapp.quick('Italy')">Italian Jewry</button>
+      <button type="button" class="chip" onclick="PJPapp.quick('India')">Indian communities</button>
+      <button type="button" class="chip" onclick="PJPapp.quick('Mikveh Israel')">Early America</button>
+      <button type="button" class="chip" onclick="PJPapp.quick('Maimonides')">Maimonides</button>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section class="source-overview" id="sourceOverview" aria-labelledby="coverageTitle">
+  <div class="coverage-heading"><div><span class="section-kicker">CONNECTED COLLECTIONS</span><h2 id="coverageTitle">Sources</h2></div><p id="coverageDate">Reading source coverage…</p></div>
+  <div class="source-cards" id="sourceCards"></div>
+  <details class="coverage-details"><summary>What is included in this index?</summary><div id="coverageDetails">Loading coverage…</div></details>
+  <p class="coverage-note" id="coverageNote">This growing index includes selected records. Finding aids describe archival collections and may require an in-person visit. Image access and reuse terms vary by item.</p>
+</section>
+
+
+
+<!-- SEARCH -->
+<div class="wrap" id="view-search">
+  <aside class="facets" aria-label="Refine search results">
+    <div class="facet-head"><h3>Refine</h3><button onclick="PJPapp.clearAll()">Clear all</button></div>
+    <div id="facetGroups"></div>
+    <p class="map-legend" style="padding:10px 2px 0">Refine across repositories. Combine source, format, place, and language to follow your research.</p>
+  </aside>
+  <main>
+    <div class="browse-heading"><div><span class="section-kicker">THE COLLECTIONS</span><h2>From the collections</h2></div><label class="image-toggle"><input id="imagesOnly" type="checkbox" onchange="PJPapp.imagesOnly(this.checked)"> With digital images</label></div>
+    <div class="activefilters" id="activeFilters"></div>
+    <div class="results-head">
+      <div class="count" aria-live="polite">Showing <b id="shownCount">0</b> of <b id="matchCount">0</b> items <a style="cursor:pointer;margin-left:8px;font-size:12px" onclick="PJPapp.copyLink()">· copy shareable link</a></div>
+      <select class="sortsel" id="sortSel" aria-label="Sort results" onchange="PJPapp.setSort()">
+        <option value="relevance">Sort: Relevance</option>
+        <option value="oldest">Date: Oldest first</option>
+        <option value="newest">Date: Newest first</option>
+        <option value="title">Title: A–Z</option>
+      </select>
+    </div>
+    <div class="grid" id="grid"></div>
+  </main>
+</div>
+
+<!-- MAP -->
+<div class="wrap" id="view-map" style="display:none;grid-template-columns:1fr">
+  <main>
+    <div class="results-head"><div class="count">Explore places named in the catalog. Click a marker to preview its items or browse the full list.</div></div>
+    <div id="map"></div>
+    <p class="map-legend">Each item is mapped once, at its first resolved catalog location. Other place mentions and the original wording remain in the record. Unresolved places remain searchable.</p>
+  </main>
+</div>
+
+<!-- TIMELINE -->
+<div class="wrap" id="view-timeline" style="display:none;grid-template-columns:1fr">
+  <main>
+    <div class="results-head"><div class="count">Dates follow source descriptions. Ranges appear once, at their earliest possible year; original dates and uncertainty are retained. Dates without a supported Gregorian equivalent appear under Undated / unresolved. Click an item to read its record.</div></div>
+    <div class="timeline-layout"><nav class="era-nav" aria-label="Jump to an era"><h2>Jump to an era</h2><div id="eraLinks"></div></nav><div class="timeline-wrap" id="timeline"></div></div>
+  </main>
+</div>
+
+<!-- HIGHLIGHTS -->
+<div class="wrap" id="view-highlights" style="display:none;grid-template-columns:1fr">
+  <main>
+    <p class="hl-intro">A selection of digitized objects to begin exploring. Open a record to browse its pages and original description.</p>
+    <div id="highlights"></div>
+  </main>
+</div>
+
+<!-- SAVED -->
+<div class="wrap" id="view-saved" style="display:none;grid-template-columns:1fr">
+  <main>
+    <div class="results-head">
+      <div class="count">Your saved items — <b id="savedCount2">0</b> kept for later</div>
+      <div>
+        <button class="btn ghost" onclick="PJPapp.exportSaved()">Export list</button>
+        <button class="btn ghost" onclick="PJPapp.clearSaved()">Clear</button>
+      </div>
+    </div>
+    <div class="grid" id="savedGrid"></div>
+  </main>
+</div>
+
+<!-- ITEM VIEWER (deep zoom) -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)PJPapp.closeModal()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" tabindex="-1">
+    <button aria-label="Close record" class="close" onclick="PJPapp.closeModal()">×</button>
+    <div class="viewer">
+      <div id="osd"></div>
+      <div id="viewerNotice" class="viewer-notice" hidden>Images are not available here. Use “View in source system” to check access.</div>
+      <div class="vfallback" id="vfallback" style="display:none"><img id="mFallbackImg" alt=""></div>
+      <div class="pagenav" id="pageNav" style="display:none">
+        <button id="pgPrev" title="Previous leaf (←)" onclick="PJPapp.prevPage()">‹</button>
+        <span id="pageCounter">1 / 1</span>
+        <button id="pgNext" title="Next leaf (→)" onclick="PJPapp.nextPage()">›</button>
+      </div>
+      <div class="filmstrip hide" id="filmstrip"></div>
+    </div>
+    <div class="info">
+      <div class="itype"><span class="dot" id="mDot"></span><span id="mType"></span></div>
+      <h2 id="mTitle"></h2>
+      <div class="creator" id="mCreator"></div>
+      <p class="desc" id="mDesc"></p>
+      <div id="mMeta"></div>
+      <div class="src-row" id="mSrc"></div>
+      <div class="ext-links">
+        <a class="savetoggle" id="mSave" onclick="PJPapp.toggleSaveCurrent()">♡ Save</a>
+        <a id="mSrcLink" target="_blank" rel="noopener">↗ View in source system</a>
+        <button type="button" class="text-action" onclick="PJPapp.copyLink()">🔗 Copy link to this item</button>
+        <a id="mManifest" target="_blank" rel="noopener" hidden>IIIF manifest ↗</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADVANCED SEARCH -->
+<div class="modal-bg" id="advBg" onclick="if(event.target===this)PJPapp.closeAdv()">
+  <div class="adv-modal" role="dialog" aria-modal="true" aria-labelledby="advTitle" tabindex="-1">
+    <button aria-label="Close advanced search" class="adv-close" onclick="PJPapp.closeAdv()">×</button>
+    <div class="adv-head"><h2 id="advTitle">Advanced search</h2><p>Combine fields across all collections. Formats group equivalent source terms; a record can match several groups. Date ranges match overlapping dates.</p></div>
+    <div class="adv-body">
+      <div class="adv-grid">
+        <div class="field full"><label for="aKey">Keywords (anywhere)</label><input id="aKey" type="text" placeholder="e.g. illuminated, Sassoon, synagogue"></div>
+        <div class="field"><label for="aTitle">Title contains</label><input id="aTitle" type="text"></div>
+        <div class="field"><label for="aCreator">Creator / author</label><input id="aCreator" type="text"></div>
+        <div class="field"><label>Gregorian year range</label><div class="yr-range"><input id="aFrom" type="number" placeholder="from" min="1" max="2100"><span>–</span><input id="aTo" type="number" placeholder="to" min="1" max="2100"></div></div>
+        <div class="field"><label for="aLang">Language</label><select id="aLang"></select></div>
+        <div class="field"><label for="aType">Format group</label><select id="aType"></select></div>
+        <div class="field"><label for="aRegion">Region</label><select id="aRegion"></select></div>
+        <div class="field"><label for="aSystem">Source system</label><select id="aSystem"></select></div>
+        <div class="field"><label for="aSource">Repository group</label><select id="aSource"></select></div>
+        <div class="field full"><label for="aCollectionQuery">Find a collection</label><input id="aCollectionQuery" type="search" placeholder="Type part of a collection name…" oninput="PJPapp.filterCollections(this.value)"><label for="aCollection">Collection membership</label><select id="aCollection"></select><small>Each collection is listed separately. Items in several collections match any of their memberships. Counts can overlap.</small></div>
+        <div class="field check full"><input id="aIiif" type="checkbox"><label for="aIiif">Only items with digital images</label></div>
+      </div>
+    </div>
+    <div class="adv-foot"><button class="reset" onclick="PJPapp.resetAdv()">Reset fields</button><button class="btn" onclick="PJPapp.applyAdv()">Search</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<footer><div class="footer-brand">Penn Judaica <span>Collections &amp; Archives</span></div><p>An independent research prototype connecting <a href="https://digitalcollections.library.upenn.edu/">Penn Digital Collections</a>, <a href="https://openn.library.upenn.edu/">OPenn</a>, and <a href="https://findingaids.library.upenn.edu/">Philadelphia Area Archives finding aids</a>. Not an official Penn Libraries service.</p><p>Descriptions and images remain with their holding institutions. Consult the original record for access, attribution, and reuse terms. Pomegranate imagery, red and olive accents, and serif typography draw on <a href="https://www.nli.org.il/en/newspapers/mgm"><i>Milgroym</i></a> (Berlin, 1922–1924).</p></footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

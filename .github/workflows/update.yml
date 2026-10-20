@@ -1,0 +1,15 @@
+name: Legacy OPenn refresh (retired)
+
+# The unified nightly refresh in harvest.yml replaces this older data.js job.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use the unified collection refresh
+        run: echo 'This workflow is retired. Run Nightly collection refresh (harvest.yml) to refresh all three sources.'
