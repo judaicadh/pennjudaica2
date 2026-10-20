@@ -115,3 +115,14 @@ place-name boundaries, prefer cities to countries, and respect country context.
 Unresolved places stay searchable without a speculative marker. `mapLabel` and
 `placeDisplay` are presentation fields; `place` retains the original catalog text.
 Barcelona, Venezuela is disambiguated using the GeoNames coordinates cited in that file.
+
+## Branches and deployment
+
+`master` is the publishing branch and contains the revised static portal. `main`
+remains available as the previous development branch. The merge preserves both
+histories. Legacy Astro sources remain in the repository, but their deployment
+workflow is retired; only the validated static-site package is published.
+
+Push `master` to publish the revised site and install the nightly refresh on
+the repository’s default branch. The GitHub Pages environment already permits
+`master`; no change to its deployment permissions is required for this merge.
