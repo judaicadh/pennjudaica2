@@ -17,25 +17,28 @@
   var mini = null;          // MiniSearch instance — built once on boot
   var dataReady = false;    // gate render passes until items.json has arrived
 
+  var SYSTEM_LABELS = { OPenn: "OPenn", DigitalCollections: "Digital Collections", FindingAids: "Finding aids" };
   var FACET_FIELDS = [
-    { key: "source", label: "Collection", fmt: function (v) { return SOURCES[v].label; }, dot: function (v) { return SOURCES[v].color; } },
+    { key: "system", label: "Source", fmt: function(v) { return SYSTEM_LABELS[v] || v; } },
+    { key: "collection", label: "Collection" },
+    { key: "source", label: "Repository group", fmt: function (v) { return SOURCES[v].label; }, dot: function (v) { return SOURCES[v].color; } },
     { key: "type",   label: "Format / type" },
     { key: "region", label: "Region of origin" },
     { key: "lang",   label: "Language" }
   ];
-  function emptyAdv() { return { key: "", title: "", creator: "", from: null, to: null, lang: "", type: "", source: "", region: "", iiif: false }; }
+  function emptyAdv() { return { key: "", title: "", creator: "", from: null, to: null, lang: "", type: "", source: "", collection: "", system: "", region: "", iiif: false }; }
 
   var PAGE_SIZE = 60;  // cards rendered per "page" in the results grid
   var state = {
     q: "", sort: "relevance",
-    filters: { source: new Set(), type: new Set(), region: new Set(), lang: new Set() },
+    filters: { collection: new Set(), system: new Set(), source: new Set(), type: new Set(), region: new Set(), lang: new Set() },
     adv: emptyAdv(),
     saved: new Set(),
     view: "search",
     page: 1
   };
   var map, markerLayer, osd, currentItemId = null, restoring = false;
-  var viewerPages = [], viewerIndex = 0;
+  var viewerPages = [], viewerIndex = 0, modalTrigger = null, advancedTrigger = null;
 
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -56,24 +59,34 @@
       prefix: true, fuzzy: 0.2,
       boost: { title: 3, creator: 2, place: 1.5 }
     });
-    return hits.map(function (h) { return h.id; });
+    // Search libraries may serialize IDs; the local index uses numbers.
+    return hits.map(function (h) { return Number(h.id); });
   }
   function substringMatch(it, q) {
     if (!q) return true; q = q.toLowerCase();
-    return [it.title, it.creator, it.desc, it.place, it.region, it.collection, it.lang, it.type, it.dateText, it.callno].join(" ").toLowerCase().indexOf(q) !== -1;
+    return [it.title, it.creator, it.desc, it.place, it.region, it.collection, it.lang, it.type, it.dateText, it.callno, (it.people || []).join(" "), (it.subjects || []).join(" "), (it.corpnames || []).join(" "), (it.places || []).join(" ")].join(" ").toLowerCase().indexOf(q) !== -1;
   }
-  function passesFacets(it) { return FACET_FIELDS.every(function (f) { var s = state.filters[f.key]; return s.size === 0 || s.has(it[f.key]); }); }
+  function facetValues(it, key) {
+    var arrays = {collection:"collections",type:"formats",lang:"languages",region:"regions"};
+    return arrays[key] ? (it[arrays[key]] || [it[key]]) : [it[key]];
+  }
+  function matchesFacet(it, key, selected) {
+    return !selected.size || facetValues(it, key).some(function(v) { return selected.has(v); });
+  }
+  function passesFacets(it) { return FACET_FIELDS.every(function (f) { var s = state.filters[f.key]; return matchesFacet(it, f.key, s); }); }
   function passesAdv(it) {
     var a = state.adv;
     if (a.key && !substringMatch(it, a.key)) return false;  // also intersected with mini hits if state.q is set
     if (a.title && it.title.toLowerCase().indexOf(a.title.toLowerCase()) === -1) return false;
     if (a.creator && it.creator.toLowerCase().indexOf(a.creator.toLowerCase()) === -1) return false;
-    if (a.from != null && it.year < a.from) return false;
-    if (a.to != null && it.year > a.to) return false;
-    if (a.lang && it.lang !== a.lang) return false;
-    if (a.type && it.type !== a.type) return false;
+    if (a.from != null && (!it.yearStart || it.yearEnd < a.from)) return false;
+    if (a.to != null && (!it.yearStart || it.yearStart > a.to)) return false;
+    if (a.lang && facetValues(it,"lang").indexOf(a.lang) < 0) return false;
+    if (a.type && facetValues(it,"type").indexOf(a.type) < 0) return false;
     if (a.source && it.source !== a.source) return false;
-    if (a.region && it.region !== a.region) return false;
+    if (a.system && it.system !== a.system) return false;
+    if (a.collection && facetValues(it,"collection").indexOf(a.collection) < 0) return false;
+    if (a.region && facetValues(it,"region").indexOf(a.region) < 0) return false;
     if (a.iiif && !it.iiif) return false;
     return true;
   }
@@ -86,7 +99,7 @@
       var byId = new Map(ITEMS.map(function (it) { return [it.id, it]; }));
       pool = ids.map(function (id) { return byId.get(id); }).filter(Boolean);
     } else {
-      pool = ITEMS;
+      pool = ITEMS.filter(function (it) { return substringMatch(it, state.q); });
     }
     return pool.filter(function (it) { return passesFacets(it) && passesAdv(it); });
   }
@@ -94,8 +107,8 @@
     var s = state.sort, a = arr.slice();
     // "relevance" = whatever order pool arrived in.
     // With a query that's MiniSearch's ranking; without one, it's ITEMS order.
-    if (s === "oldest") a.sort(function (x, y) { return x.year - y.year; });
-    else if (s === "newest") a.sort(function (x, y) { return y.year - x.year; });
+    if (s === "oldest") a.sort(function (x, y) { return (x.yearStart || Infinity) - (y.yearStart || Infinity); });
+    else if (s === "newest") a.sort(function (x, y) { return (y.yearEnd || -Infinity) - (x.yearEnd || -Infinity); });
     else if (s === "title") a.sort(function (x, y) { return x.title.localeCompare(y.title); });
     return a;
   }
@@ -109,6 +122,7 @@
     FACET_FIELDS.forEach(function (f) {
       if (state.filters[f.key].size) p.push(f.key + "=" + encodeURIComponent(Array.from(state.filters[f.key]).join("|")));
     });
+    Object.keys(state.adv).forEach(function (key) { var v = state.adv[key]; if (v !== "" && v !== null && v !== false) p.push("adv_" + key + "=" + encodeURIComponent(v)); });
     if (state.sort !== "relevance") p.push("sort=" + state.sort);
     if (currentItemId != null) p.push("item=" + currentItemId);
     var h = p.join("&");
@@ -117,13 +131,19 @@
   function readHash() {
     restoring = true;
     var h = location.hash.replace(/^#/, "");
+    state.adv = emptyAdv();
     state.q = ""; state.sort = "relevance"; state.view = "search";
     FACET_FIELDS.forEach(function (f) { state.filters[f.key] = new Set(); });
     var openItem = null, view = "search";
     if (h) h.split("&").forEach(function (pair) {
       var i = pair.indexOf("="); if (i < 0) return;
-      var k = pair.slice(0, i), v = decodeURIComponent(pair.slice(i + 1));
-      if (k === "q") state.q = v;
+      var k = pair.slice(0, i), v;
+      try { v = decodeURIComponent(pair.slice(i + 1)); } catch (e) { return; }
+      if (k.indexOf("adv_") === 0 && Object.prototype.hasOwnProperty.call(state.adv, k.slice(4))) {
+        var field = k.slice(4);
+        state.adv[field] = field === "iiif" ? v === "true" : (field === "from" || field === "to" ? (/^\d+$/.test(v) ? Number(v) : null) : v);
+      }
+      else if (k === "q") state.q = v;
       else if (k === "sort") state.sort = v;
       else if (k === "view") view = v;
       else if (k === "item") openItem = parseInt(v, 10);
@@ -144,13 +164,13 @@
     // Apply MiniSearch / no-query exactly once for all facet groups.
     var ids = miniHits(state.q);
     var byId = ids ? new Map(ITEMS.map(function (it) { return [it.id, it]; })) : null;
-    var candidates = ids ? ids.map(function (id) { return byId.get(id); }).filter(Boolean) : ITEMS;
+    var candidates = ids ? ids.map(function (id) { return byId.get(id); }).filter(Boolean) : ITEMS.filter(function(it) { return substringMatch(it, state.q); });
     candidates = candidates.filter(function (it) { return passesAdv(it); });
     FACET_FIELDS.forEach(function (f) {
       var pool = candidates.filter(function (it) {
-        return FACET_FIELDS.every(function (g) { return g.key === f.key ? true : (state.filters[g.key].size === 0 || state.filters[g.key].has(it[g.key])); });
+        return FACET_FIELDS.every(function (g) { return g.key === f.key ? true : matchesFacet(it, g.key, state.filters[g.key]); });
       });
-      var counts = {}; pool.forEach(function (it) { counts[it[f.key]] = (counts[it[f.key]] || 0) + 1; });
+      var counts = {}; pool.forEach(function (it) { facetValues(it, f.key).forEach(function(v) { counts[v] = (counts[v] || 0) + 1; }); });
       var vals = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); });
       if (!vals.length) return;
       var g = document.createElement("div"); g.className = "facet-group";
@@ -176,7 +196,7 @@
     var a = state.adv;
     [a.key && ["key", "keyword: " + a.key], a.title && ["title", "title: " + a.title], a.creator && ["creator", "creator: " + a.creator],
      (a.from != null) && ["from", "from " + a.from], (a.to != null) && ["to", "to " + a.to], a.lang && ["lang", a.lang], a.type && ["type", a.type],
-     a.region && ["region", a.region], a.source && ["source", SOURCES[a.source] ? SOURCES[a.source].label : a.source], a.iiif && ["iiif", "has images"]
+     a.collection && ["collection", a.collection], a.system && ["system", SYSTEM_LABELS[a.system]], a.region && ["region", a.region], a.source && ["source", SOURCES[a.source] ? SOURCES[a.source].label : a.source], a.iiif && ["iiif", "has images"]
     ].filter(Boolean).forEach(function (kv) {
       host.innerHTML += '<span class="pill" style="border-color:var(--plum)">' + esc(kv[1]) + ' <span class="x" onclick="PJPapp.clearAdvField(\'' + kv[0] + '\')">×</span></span>';
     });
@@ -203,19 +223,22 @@
         '<button class="savemark ' + (saved ? "on" : "") + '" title="' + (saved ? "Saved" : "Save") + '" onclick="PJPapp.toggleSave(' + it.id + ',event)">' + (saved ? "♥" : "♡") + '</button></div>'
       : noImagePlaceholder(s).replace('</div>',
           '<button class="savemark ' + (saved ? "on" : "") + '" title="' + (saved ? "Saved" : "Save") + '" onclick="PJPapp.toggleSave(' + it.id + ',event)">' + (saved ? "♥" : "♡") + '</button></div>');
-    return '<div class="card" onclick="PJPapp.openItem(' + it.id + ')">' + thumb +
+    return '<article class="card" tabindex="0" data-item="' + it.id + '" onclick="PJPapp.openItem(' + it.id + ')">' + thumb +
       '<div class="card-body"><div class="ctype"><span class="dot" style="background:' + s.color + '"></span><span>' + esc(it.type) + " · " + esc(s.label) + "</span></div>" +
-      "<h3>" + esc(it.title) + '</h3><div class="meta">' + esc(it.dateText) + " · " + esc(it.lang) + "</div></div></div>";
+      '<div class="record-kind">' + esc(SYSTEM_LABELS[it.system] || it.system) + (it.system === 'FindingAids' ? ' · Collection guide' : ' · Digitized item') + '</div><h3>' + esc(it.title) + '</h3><div class="meta">' + esc(it.dateText) + " · " + esc(it.lang) + "</div></div></article>";
   }
   function render(keepPage) {
     if (!keepPage) state.page = 1;
     var res = sortItems(filtered());
+    $("queryFeedback").textContent = state.q ? res.length.toLocaleString() + " matches · " : "";
     buildFacets(); renderActiveFilters(); refreshSavedUI();
     renderGrid(res);
     if (state.view === "map") drawMap(res);
     if (state.view === "timeline") drawTimeline(res);
     if (state.view === "highlights") drawHighlights();
     if (state.view === "saved") drawSaved();
+    $("imagesOnly").checked = state.adv.iiif;
+    document.querySelectorAll(".source-card[data-system]").forEach(function(el) { el.setAttribute("aria-pressed", state.filters.system.has(el.dataset.system) ? "true" : "false"); });
     writeHash();
   }
   function renderGrid(res) {
@@ -248,7 +271,7 @@
   function ensureMap() {
     if (map) { setTimeout(function () { map.invalidateSize(); }, 60); return; }
     map = L.map("map", { scrollWheelZoom: true }).setView([30, 24], 2);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 18, subdomains: "abcd" }).addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19 }).addTo(map);
     // markerCluster groups nearby points so we never plot ~1700 markers at once
     markerLayer = (L.markerClusterGroup ? L.markerClusterGroup({
       maxClusterRadius: 48, showCoverageOnHover: false, chunkedLoading: true,
@@ -285,26 +308,28 @@
 
   /* ---------------- timeline ---------------- */
   var ERAS = [
-    { from: 1,    to: 1099, yr: "Before 1100", nm: "Earliest Cairo Genizah fragments" },
-    { from: 1100, to: 1299, yr: "1100s–1200s", nm: "The Genizah & the age of Maimonides" },
-    { from: 1300, to: 1499, yr: "1300s–1400s", nm: "Late medieval manuscripts" },
-    { from: 1500, to: 1599, yr: "1500s", nm: "Renaissance & the Ottoman world" },
-    { from: 1600, to: 1699, yr: "1600s", nm: "Early modern Italy & the Ottoman world" },
-    { from: 1700, to: 1799, yr: "1700s", nm: "Enlightenment & the early American republic" },
-    { from: 1800, to: 2100, yr: "1800s–1900s", nm: "A Jewish world spanning four continents" },
-    { from: 0,    to: 0,    yr: "Undated", nm: "Date not recorded in the source" }
+    { from: 1, to: 1099, yr: "Before 1100", nm: "Dates in the source descriptions" },
+    { from: 1100, to: 1299, yr: "1100–1299", nm: "" },
+    { from: 1300, to: 1499, yr: "1300–1499", nm: "" },
+    { from: 1500, to: 1599, yr: "1500–1599", nm: "" },
+    { from: 1600, to: 1699, yr: "1600–1699", nm: "" },
+    { from: 1700, to: 1799, yr: "1700–1799", nm: "" },
+    { from: 1800, to: 1899, yr: "1800–1899", nm: "" },
+    { from: 1900, to: 1999, yr: "1900–1999", nm: "" },
+    { from: 2000, to: 2100, yr: "2000 onward", nm: "" },
+    { from: 0, to: 0, yr: "Undated / unresolved", nm: "No usable Gregorian date in the source" }
   ];
   function drawTimeline(items) {
     var host = $("timeline"); host.innerHTML = "";
     ERAS.forEach(function (e) {
-      var inEra = items.filter(function (it) { return it.year >= e.from && it.year <= e.to; }).sort(function (a, b) { return a.year - b.year; });
+      var inEra = items.filter(function (it) { return (it.yearStart || 0) >= e.from && (it.yearStart || 0) <= e.to; }).sort(function (a, b) { return a.year - b.year; });
       // never show an empty "Undated" scaffold row
       if (e.to === 0 && !inEra.length) return;
       var row = document.createElement("div"); row.className = "era-row";
       var ERA_CAP = 48;
       var chips = inEra.slice(0, ERA_CAP).map(function (it) {
         var t = it.title.length > 40 ? it.title.slice(0, 38) + "…" : it.title;
-        return '<div class="tl-item" onclick="PJPapp.openItem(' + it.id + ')"><div class="tlimg"><img loading="lazy" src="' + it.img + '" alt=""></div><div class="t">' + esc(t) + '</div><div class="d">' + esc(it.dateText) + "</div></div>";
+        return '<div class="tl-item" onclick="PJPapp.openItem(' + it.id + ')"><div class="tlimg">' + (it.img ? '<img loading="lazy" src="' + esc(it.img) + '" alt="">' : '<span class="timeline-guide">Collection guide</span>') + '</div><div class="t">' + esc(t) + '</div><div class="d">' + esc(it.dateText) + (it.yearStart && it.yearEnd !== it.yearStart ? '<span class="date-interpretation">Range: ' + it.yearStart + '–' + it.yearEnd + ' · placed by earliest year</span>' : (!it.yearStart && it.dateStatus !== "unknown" ? '<span class="date-interpretation">Date placement unresolved</span>' : "")) + "</div></div>";
       }).join("");
       if (inEra.length > ERA_CAP) chips += '<div class="d" style="align-self:center;color:#8c8270;padding:0 6px">+ ' + (inEra.length - ERA_CAP) + ' more in this era — narrow your search to see them</div>';
       if (!inEra.length) chips = '<div class="d" style="color:#bcb39c;align-self:center">— no items in current results —</div>';
@@ -365,8 +390,9 @@
 
   function openItem2(id, fromHash) {
     var it = ITEMS.filter(function (x) { return x.id === id; })[0]; if (!it) return;
+    modalTrigger = document.activeElement;
     currentItemId = id; var s = SOURCES[it.source];
-    var isFA = (it.system === "FindingAids") || (!it.img && !it.iiif);
+    var isFA = it.system === "FindingAids";
 
     // Toggle the modal layout: image-led for OPenn, text-led for finding aids.
     $("modalBg").classList.toggle("finding-aid", isFA);
@@ -416,9 +442,14 @@
       $("mSrc").innerHTML = "Discovered via the unified index · Record &amp; images live in <b>" + esc(s.label) + "</b>";
       $("mSrcLink").textContent = "↗ View in source system";
     }
+    $("mManifest").hidden = !it.manifest;
+    if (it.manifest) $("mManifest").href = it.manifest;
+    if (it.alsoIn && it.alsoIn.length) $("mSrc").innerHTML += '<div class="related-sources">Also described in: ' + it.alsoIn.filter(function(url) { return /^https?:\/\//.test(url); }).map(function(url) { return '<a target="_blank" rel="noopener" href="' + esc(url) + '">Original record ↗</a>'; }).join(' · ') + '</div>';
+    if (it.rights) $("mSrc").innerHTML += '<p>Rights: ' + esc(it.rights) + '</p>';
     $("mSrcLink").href = it.srcUrl;
     syncModalSave();
     $("modalBg").classList.add("open");
+    $("modalBg").querySelector(".close").focus();
     if (!fromHash) writeHash();
 
     if (isFA) {
@@ -448,6 +479,8 @@
   }
   function renderViewer() {
     var pg = viewerPages[viewerIndex] || viewerPages[0];
+    $("viewerNotice").hidden = !!pg;
+    if (!pg) return;
     loadImage(pg.img, pg.label);
     var multi = viewerPages.length > 1;
     $("pageNav").style.display = multi ? "flex" : "none";
@@ -478,7 +511,9 @@
   }
   function goToPage(i) { if (i < 0 || i >= viewerPages.length) return; viewerIndex = i; renderViewer(); }
   function closeModal() {
+    var wasOpen = $("modalBg").classList.contains("open");
     $("modalBg").classList.remove("open");
+    if (wasOpen && modalTrigger && modalTrigger.isConnected) modalTrigger.focus();
     if (osd) { try { osd.close(); } catch (e) {} }
     currentItemId = null; writeHash();
   }
@@ -491,18 +526,37 @@
   function fillSelect(id, values, ph) { $(id).innerHTML = '<option value="">' + ph + "</option>" + values.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + "</option>"; }).join(""); }
   function uniq(field) { var s = {}; ITEMS.forEach(function (i) { s[i[field]] = 1; }); return Object.keys(s).sort(); }
   function initAdvOptions() {
-    fillSelect("aLang", uniq("lang"), "Any language");
-    fillSelect("aType", uniq("type"), "Any format");
-    fillSelect("aRegion", uniq("region"), "Any region");
-    $("aSource").innerHTML = '<option value="">Any collection</option>' + Object.keys(SOURCES).map(function (k) { return '<option value="' + k + '">' + esc(SOURCES[k].label) + "</option>"; }).join("");
+    function valuesFor(key) { return Array.from(new Set(ITEMS.flatMap(function(it) { return facetValues(it,key); }))).sort(); }
+    fillSelect("aLang", valuesFor("lang"), "Any language");
+    fillSelect("aType", valuesFor("type"), "Any format group");
+    fillSelect("aRegion", valuesFor("region"), "Any region");
+    $("aSystem").innerHTML = '<option value="">Any source</option>' + Object.keys(SYSTEM_LABELS).map(function(k) { return '<option value="' + k + '">' + esc(SYSTEM_LABELS[k]) + '</option>'; }).join("");
+    $("aSource").innerHTML = '<option value="">Any repository group</option>' + Object.keys(SOURCES).map(function (k) { return '<option value="' + k + '">' + esc(SOURCES[k].label) + "</option>"; }).join("");
+    fillCollectionOptions("");
+  }
+  function fillCollectionOptions(query) {
+    var selected = $("aCollection").value;
+    var counts = {};
+    ITEMS.forEach(function(it) { facetValues(it,"collection").forEach(function(v) { counts[v]=(counts[v]||0)+1; }); });
+    var names = Object.keys(counts).sort().filter(function(v) { return v === selected || v.toLowerCase().indexOf(query.toLowerCase()) >= 0; });
+    $("aCollection").innerHTML = '<option value="">Any collection</option>' + names.map(function(v) { return '<option value="' + esc(v) + '">' + esc(v.replace(/ \(University of Pennsylvania\)/g,"")) + ' (' + counts[v].toLocaleString() + ')</option>'; }).join("");
+    $("aCollection").value = selected;
   }
 
   /* ---------------- view switching ---------------- */
   function setView(v, fromHash) {
+    if (["search", "map", "timeline", "highlights", "saved"].indexOf(v) < 0) v = "search";
     state.view = v;
+    $("searchIntro").hidden = v !== "search";
+    $("sourceOverview").hidden = v !== "search";
     ["search", "map", "timeline", "highlights", "saved"].forEach(function (x) { $("view-" + x).style.display = (x === v) ? "" : "none"; });
     var tabs = document.querySelectorAll(".tab");
-    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("active", tabs[i].getAttribute("data-v") === v);
+    for (var i = 0; i < tabs.length; i++) {
+      var selected = tabs[i].getAttribute("data-v") === v;
+      tabs[i].classList.toggle("active", selected);
+      if (selected) tabs[i].setAttribute("aria-current", "page");
+      else tabs[i].removeAttribute("aria-current");
+    }
     if (v === "map") { ensureMap(); drawMap(filtered()); }
     if (v === "timeline") drawTimeline(filtered());
     if (v === "highlights") drawHighlights();
@@ -527,7 +581,9 @@
 
   /* ---------------- public API (for inline handlers) ---------------- */
   window.PJPapp = {
-    doSearch: function () { state.q = $("q").value.trim(); setView("search"); render(); },
+    imagesOnly: function(on) { state.adv.iiif = on; render(); },
+    sourceView: function(system) { state.filters.system = new Set(system ? [system] : []); setView("search"); render(); },
+    doSearch: function () { clearTimeout(searchTimer); state.q = $("q").value.trim(); setView("search"); render(); },
     quick: function (q) { $("q").value = q; this.doSearch(); },
     setView: function (v) { setView(v); render(); },
     setSort: function () { state.sort = $("sortSel").value; render(); },
@@ -551,20 +607,24 @@
     clearSaved: function () { state.saved.clear(); persistSaved(); refreshSavedUI(); render(); },
     exportSaved: exportSaved,
     openAdv: function () {
+      advancedTrigger = document.activeElement;
       var a = state.adv;
       $("aKey").value = a.key; $("aTitle").value = a.title; $("aCreator").value = a.creator;
       $("aFrom").value = a.from == null ? "" : a.from; $("aTo").value = a.to == null ? "" : a.to;
+      $("aCollectionQuery").value = ""; fillCollectionOptions(""); $("aCollection").value = a.collection; $("aSystem").value = a.system;
       $("aLang").value = a.lang; $("aType").value = a.type; $("aRegion").value = a.region; $("aSource").value = a.source; $("aIiif").checked = a.iiif;
       $("advBg").classList.add("open");
+      $("aKey").focus();
     },
-    closeAdv: function () { $("advBg").classList.remove("open"); },
-    resetAdv: function () { ["aKey", "aTitle", "aCreator", "aFrom", "aTo", "aLang", "aType", "aRegion", "aSource"].forEach(function (id) { $(id).value = ""; }); $("aIiif").checked = false; },
+    closeAdv: function () { var wasOpen = $("advBg").classList.contains("open"); $("advBg").classList.remove("open"); if (wasOpen && advancedTrigger) advancedTrigger.focus(); },
+    filterCollections: fillCollectionOptions,
+    resetAdv: function () { ["aKey", "aTitle", "aCreator", "aFrom", "aTo", "aLang", "aType", "aRegion", "aSource", "aSystem", "aCollection", "aCollectionQuery"].forEach(function (id) { $(id).value = ""; }); $("aIiif").checked = false; fillCollectionOptions(""); },
     applyAdv: function () {
       var num = function (v) { v = parseInt(v, 10); return isNaN(v) ? null : v; };
       state.adv = {
         key: $("aKey").value.trim(), title: $("aTitle").value.trim(), creator: $("aCreator").value.trim(),
         from: num($("aFrom").value), to: num($("aTo").value), lang: $("aLang").value, type: $("aType").value,
-        region: $("aRegion").value, source: $("aSource").value, iiif: $("aIiif").checked
+        collection: $("aCollection").value, system: $("aSystem").value, region: $("aRegion").value, source: $("aSource").value, iiif: $("aIiif").checked
       };
       this.closeAdv(); setView("search"); render();
     },
@@ -588,7 +648,7 @@
       fields: ["title", "creator", "desc", "place", "region", "collection",
                "lang", "type", "dateText", "callno",
                "people", "corpnames", "subjects", "places"],
-      storeFields: ["id"],
+      storeFields: [],
       extractField: function (doc, fieldName) {
         // Subject heading arrays (people/corpnames/subjects/places) flatten
         // to a single string so MiniSearch indexes each word.
@@ -608,11 +668,33 @@
     $("grid").innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="big">⚠</span>Could not load items.json (' + (err && err.message ? err.message : err) + '). Try refreshing.</div>';
   }
 
+  var searchTimer;
+  function updateQuery() {
+    clearTimeout(searchTimer);
+    state.q = $("q").value.trim();
+    render();
+  }
+
   function bindDom() {
     loadSaved();
     refreshSavedUI();
+    document.querySelectorAll(".text-action").forEach(function(el) { el.style.fontFamily = "inherit"; });
+    $("q").addEventListener("input", function (e) {
+      clearTimeout(searchTimer);
+      if (e.isComposing) return;
+      searchTimer = setTimeout(updateQuery, 150);
+    });
+    $("q").addEventListener("compositionend", updateQuery);
     $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") window.PJPapp.doSearch(); });
     document.addEventListener("keydown", function (e) {
+      if (e.target.matches(".card") && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openItem2(Number(e.target.dataset.item)); return; }
+      var dialog = document.querySelector(".modal-bg.open");
+      if (dialog && e.key === "Tab") {
+        var focusable = Array.from(dialog.querySelectorAll('button, a[href], input, select, [tabindex="0"]')).filter(function(el) { return !el.disabled && !el.hidden && el.getClientRects().length; });
+        var first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
       if (e.key === "Escape") { closeModal(); window.PJPapp.closeAdv(); return; }
       if ($("modalBg").classList.contains("open") && viewerPages.length > 1) {
         if (e.key === "ArrowRight") { e.preventDefault(); goToPage(viewerIndex + 1); }
@@ -632,7 +714,26 @@
         ITEMS = payload.items || [];
         FEATURED = payload.featured || [];
         window.PJP = payload;  // back-compat: anything else on the page that expected window.PJP
-        $("totalCount").textContent = ITEMS.length;
+        $("totalCount").textContent = ITEMS.length.toLocaleString();
+        $("collectionCount").textContent = new Set(ITEMS.flatMap(function(it) { return it.collections || [it.collection]; })).size;
+        $("systemCount").textContent = new Set(ITEMS.map(function(it) { return it.system; })).size;
+        $("coverageDate").textContent = "Index built " + (payload.harvestedAt || "—") + " · Selected records";
+        var audit = payload.coverage && payload.coverage.DigitalCollections;
+        if (audit) {
+          var verified = audit.complete && audit.imported === audit.discovered;
+          if (verified) {
+            $("coverageDate").textContent = "Index built " + (payload.harvestedAt || "—") + " · Digital Collections scope verified";
+            $("coverageNote").textContent = "Digital Collections: full configured scope imported (" + Number(audit.imported).toLocaleString() + " records across " + audit.scopes.length + " checked scopes). Finding aids and OPenn: indexed records shown below. Access and reuse terms vary by item.";
+          }
+          $("coverageDetails").innerHTML = '<p><b>Digital Collections:</b> ' + Number(audit.imported).toLocaleString() + ' source records imported of ' + Number(audit.discovered).toLocaleString() + ' unique records discovered. ' + (verified ? 'Every result page and discovered item was imported for the configured scope.' : 'This import is incomplete.') + '</p><p>Completed ' + esc(new Date(audit.harvestedAt).toLocaleDateString("en-US", { timeZone: "America/New_York", year: "numeric", month: "short", day: "numeric" })) + '. Scope combines named Judaica collections with keyword searches. Relevance depends on source metadata; this does not claim to identify every Judaica-related item in Penn’s entire repository.</p><ul>' + audit.scopes.filter(function(scope) { return scope.kind === "collection" && scope.reported; }).map(function(scope) { return '<li>' + esc(scope.query) + ': ' + Number(scope.discovered).toLocaleString() + ' / ' + Number(scope.reported).toLocaleString() + '</li>'; }).join('') + '</ul><p>Additional searches: ' + audit.keywords.map(esc).join(', ') + '.</p><p><b>Finding aids:</b> collection guides describe archives and may require an in-person visit. Source totals above reflect the current index.</p>';
+        } else {
+          $("coverageDetails").textContent = "Digital Collections and finding aids currently contain sample imports. OPenn uses the existing harvested records.";
+        }
+        var descriptions = { DigitalCollections: "Digitized books, photographs, letters, and objects.", OPenn: "Open manuscript images, ketubot, and Genizah fragments.", FindingAids: "Collection guides to personal papers and institutional archives." };
+        $("sourceCards").innerHTML = ["DigitalCollections", "OPenn", "FindingAids"].map(function(system, n) {
+          var count = ITEMS.filter(function(it) { return it.system === system; }).length;
+          return '<button class="source-card" data-system="' + system + '" aria-pressed="false" onclick="PJPapp.sourceView(\'' + system + '\')"' + (count ? '' : ' disabled') + '><span class="source-number">0' + (n + 1) + '</span><span class="source-name">' + SYSTEM_LABELS[system] + '</span><span class="source-description">' + descriptions[system] + '</span><span class="source-count">' + (count ? count.toLocaleString() + ' indexed records ↗' : 'Not yet indexed') + '</span></button>';
+        }).join("");
         buildMiniSearch();
         initAdvOptions();   // populates the advanced-search dropdowns
         dataReady = true;

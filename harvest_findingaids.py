@@ -19,7 +19,7 @@
 #   python3 harvest_findingaids.py --out raw/findingaids.jsonl
 # ============================================================================
 
-import os, re, sys, json, html, time, argparse, urllib.parse
+import os, re, sys, json, html, time, argparse, urllib.parse, tempfile
 import requests
 
 FA = "https://findingaids.library.upenn.edu"
@@ -37,7 +37,6 @@ SUBJECT_KEYWORDS = [
 LANGUAGE_FACETS = ["Hebrew", "Yiddish", "Ladino", "Judeo-Arabic", "Aramaic"]
 
 REPOSITORY_ALLOWLIST = [
-    "University of Pennsylvania: Kislak Center for Special Collections, Rare Books and Manuscripts",
     "University of Pennsylvania: Archives at the Library of the Katz Center for Advanced Judaic Studies",
 ]
 
@@ -336,9 +335,9 @@ def parse_record(rid):
 
     # title — the first <h1> after the "Main content" anchor
     title = ""
-    h1 = re.search(r'<h1[^>]*>(.*?)</h1>', raw, re.S | re.I)
+    h1 = re.search(r'<h1[^>]*class="[^"]*document-title[^"]*"[^>]*>(.*?)</h1>', raw, re.S | re.I)
     if h1:
-        title = re.sub(r"<[^>]+>", "", h1.group(1)).strip()
+        title = html.unescape(re.sub(r"<[^>]+>", "", h1.group(1))).strip()
     title = re.sub(r"\s+", " ", title)
     if not title:
         title = rid
@@ -466,12 +465,17 @@ def write_jsonl(items_iter, path):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     count = 0
     sources_used = set()
-    with open(path, "w", encoding="utf-8") as f:
+    fd, temporary = tempfile.mkstemp(dir=os.path.dirname(path) or ".", suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         for it in items_iter:
             f.write(json.dumps(it, ensure_ascii=False))
             f.write("\n")
             count += 1
             sources_used.add(it["source"])
+    if count:
+        os.replace(temporary, path)
+    else:
+        os.unlink(temporary)
     return count, sources_used
 
 
@@ -487,8 +491,6 @@ def main():
     if not count:
         print("ERROR: harvested 0 records — refusing to leave an empty %s." % args.out,
               file=sys.stderr)
-        try: os.remove(args.out)
-        except OSError: pass
         sys.exit(1)
     print("Wrote %s with %d items (sources: %s)."
           % (args.out, count, ", ".join(sorted(sources_used))), file=sys.stderr)

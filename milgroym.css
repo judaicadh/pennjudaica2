@@ -1,0 +1,140 @@
+/* A few cues from Milgroym: pomegranate red, olive ink, and clear serif type. */
+:root{--paper:#faf8f1;--paper-2:#f0ecdf;--card:#fffdf8;--ink:#2d2b25;--ink-soft:#535046;--muted:#746f62;--line:#e0dacb;--line-strong:#c9bfa9;--terra:#943f32;--olive:#687044;--radius:2px;--shadow:none}
+body{background:var(--paper);padding:0}
+.concept-bar{background:#eeeade;color:var(--muted);padding:7px 20px;font-size:9px;letter-spacing:.08em;border-bottom:1px solid var(--line)}
+.concept-bar b{color:var(--ink-soft);font-weight:500}
+header.masthead{padding:21px 30px;background:var(--paper);border-bottom:1px solid var(--line-strong)}
+.mast-row{max-width:1260px;display:flex;justify-content:space-between;align-items:center;gap:24px;margin:auto}
+.brand{display:flex;align-items:center;gap:15px;color:var(--ink);text-decoration:none}
+.pomegranate{width:38px;height:48px;flex:none}
+.fruit-body{fill:var(--terra)}
+.fruit-crown{fill:none;stroke:var(--olive);stroke-width:2.5;stroke-linejoin:round}
+.fruit-cut{fill:#ede3ca}
+.fruit-seeds{fill:var(--terra)}
+.mast-title{display:block}
+.mast-title h1{font-family:"Iowan Old Style",Georgia,serif;font-weight:600;font-size:30px;letter-spacing:-.025em;line-height:1.1;margin:0}
+.mast-sub{display:block;margin:5px 0 0;font-size:11px;color:var(--muted);line-height:1.4;letter-spacing:.025em}
+.mast-actions{display:flex;gap:28px;align-items:center}
+.mast-links{display:flex;gap:23px;font-size:13px}
+.mast-links .text-action{color:var(--ink-soft)}
+.mast-links .text-action:hover{color:var(--terra)}
+.saved-btn{border:1px solid var(--line-strong);border-radius:2px;padding:8px 12px;background:transparent;box-shadow:none;font-size:12px}
+.saved-btn .badge{background:var(--terra)}
+.hero{padding:37px 30px 28px;background:var(--paper);border-bottom:0}
+.hero-layout{max-width:1260px;margin:auto}
+.hero-inner{max-width:850px;margin:0;text-align:left}
+.hero .eyebrow{font-size:10px;font-weight:500;color:var(--olive);letter-spacing:.08em;margin-bottom:10px}
+.hero h2{font-family:"Iowan Old Style",Georgia,serif;font-size:36px;font-weight:500;letter-spacing:-.025em;line-height:1.2;margin:0 0 10px}
+.hero p.lede{font-size:14px;line-height:1.7;margin:0 0 22px;max-width:700px;color:var(--ink-soft)}
+.searchbox{margin:0;max-width:850px;padding:4px 4px 4px 14px;border:1px solid var(--line-strong);border-radius:2px;box-shadow:none;background:var(--card)}
+.searchbox input{font-size:15px;padding:12px;min-width:0}
+.searchbox button.go{background:var(--terra);border-radius:1px;font-size:13px;padding:13px 24px}
+.searchbox button.go:hover{background:#783429}
+.hero-meta{justify-content:flex-start;gap:12px 22px;margin-top:11px}
+.adv-link .text-action{font-size:12px;color:var(--terra)}
+.scope-note{font-size:11px}
+.chips{justify-content:flex-start;gap:8px 18px;margin-top:18px}
+.chip{border:0;border-radius:0;padding:0;background:transparent;font-size:12px;font-family:inherit;color:var(--ink-soft);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:4px}
+.chip:hover{color:var(--terra)}
+.source-overview{max-width:1320px;margin:auto;padding:20px 30px 23px;border-top:1px solid var(--line)}
+.coverage-heading{margin-bottom:12px;align-items:baseline}
+.coverage-heading .section-kicker{display:none}
+.coverage-heading h2{font-family:"Iowan Old Style",Georgia,serif;font-size:24px;font-weight:500;margin:0;letter-spacing:0}
+.coverage-heading p{font-size:10px;color:var(--muted);margin:0}
+.source-cards{grid-template-columns:repeat(3,minmax(0,1fr));border:0;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line-strong);background:transparent}
+.source-card{display:flex;flex-direction:column;gap:7px;padding:16px 22px;border-right:1px solid var(--line);background:transparent}
+.source-card:first-child{padding-left:0}
+.source-card:last-child{padding-right:0;border-right:0}
+.source-card:hover,.source-card[aria-pressed=true]{background:#6870440b}
+.source-number{display:none}
+.source-name{font-family:"Iowan Old Style",Georgia,serif;font-size:21px;font-weight:500}
+.source-description{font-size:12px;line-height:1.6;max-width:300px;color:var(--muted)}
+.source-count{font-size:11px;color:var(--terra);margin-top:3px}
+.coverage-details{margin-top:10px;font-size:11px}
+.coverage-note{font-size:10px;line-height:1.7;color:var(--muted);margin-top:8px}
+.tabsbar{background:var(--paper)!important;border-top:1px solid var(--line-strong);border-bottom:1px solid var(--line);backdrop-filter:none}
+.tabs{max-width:1320px;padding:0 16px}
+.tab{padding:14px 17px;font-size:12px;color:var(--ink-soft)}
+.tab.active{color:var(--terra);border-bottom-color:var(--terra)}
+.wrap{max-width:1320px;grid-template-columns:210px minmax(0,1fr);gap:32px;padding:27px 30px 55px}
+.facet-head{border-bottom:1px solid var(--line-strong)}
+.facet-group h4{color:var(--olive);font-size:10px}
+.browse-heading{margin-bottom:17px}
+.browse-heading .section-kicker{display:none}
+.browse-heading h2{font-family:"Iowan Old Style",Georgia,serif;font-size:28px;font-weight:500;letter-spacing:-.02em}
+.image-toggle{font-size:12px}
+.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:25px 22px}
+.card{border:0;border-bottom:1px solid var(--line-strong);border-radius:0;background:transparent;box-shadow:none;transition:none}
+.card:hover{transform:none;box-shadow:none;border-bottom-color:var(--terra)}
+.thumb{height:235px;background:#efecdf;border:1px solid var(--line)}
+.thumb img{object-fit:contain;mix-blend-mode:normal;padding:12px;transition:none}
+.card:hover .thumb img{transform:none}
+.card-body{padding:13px 0 17px}
+.card-body h3{font-family:"Iowan Old Style",Georgia,serif;font-size:21px;line-height:1.3;font-weight:500;margin-bottom:8px}
+.card-body .ctype span{font-size:9px;color:var(--olive)}
+.card-body .meta{font-size:11px;color:var(--muted)}
+.record-kind{font-size:10px;margin-bottom:8px;color:var(--muted)}
+.savemark{box-shadow:none;border:1px solid var(--line);width:28px;height:28px;border-radius:2px;background:#fffdf8ed}
+.pill{border-radius:2px;background:transparent}
+.sortsel,.btn,.feature,.timeline-wrap,.modal,.adv-modal{border-radius:2px}
+.btn{background:var(--terra)}
+.btn.ghost{background:transparent}
+footer{background:#f2efe5;border-top:1px solid var(--line-strong);padding:27px max(30px,calc((100vw - 1260px)/2))}
+.footer-brand{font-family:"Iowan Old Style",Georgia,serif;font-size:25px;font-weight:500}
+:focus-visible{outline:2px solid var(--terra);outline-offset:4px}
+@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}.facets{position:static}.facets #facetGroups{max-height:180px;overflow:auto}.facet-group{width:49%;display:inline-block;vertical-align:top;padding-right:18px}.coverage-heading{flex-direction:row;gap:15px}.coverage-heading p{text-align:right;max-width:260px}.source-card{padding:14px 16px}.source-name{font-size:19px}}
+@media(max-width:640px){header.masthead{padding:18px}.mast-row{gap:12px}.brand{gap:10px}.pomegranate{width:30px;height:39px}.mast-title h1{font-size:25px}.mast-sub{font-size:10px}.mast-actions{gap:10px}.mast-links{display:none}.saved-btn{font-size:11px;padding:7px 9px}.hero{padding:27px 20px 24px}.hero h2{font-size:30px}.hero .eyebrow{font-size:9px}.hero p.lede{font-size:13px;line-height:1.7;margin-bottom:19px}.searchbox input{font-size:16px;padding:12px 8px}.searchbox button.go{padding:13px 16px}.hero-meta{gap:8px}.scope-note{font-size:10px}.chips{gap:11px 17px;margin-top:18px}.chip{font-size:11px}.source-overview{padding:18px 20px 20px}.coverage-heading{display:block}.coverage-heading h2{font-size:23px}.coverage-heading p{text-align:left;max-width:none;line-height:1.6;margin-top:6px}.source-cards{grid-template-columns:1fr}.source-card,.source-card:first-child,.source-card:last-child{padding:14px 0;border-right:0;border-bottom:1px solid var(--line);gap:5px}.source-card:last-child{border-bottom:0}.source-name{font-size:21px}.source-description{max-width:none;font-size:12px}.source-count{margin-top:2px}.tabs{padding:0 7px}.tab{padding:13px 11px;font-size:11px}.wrap{padding:24px 20px 40px;gap:23px}.facet-group{width:100%;padding:11px 0}.browse-heading h2{font-size:26px}.grid{gap:21px 15px}.thumb{height:200px}.card-body h3{font-size:19px}.card-body{padding:11px 0 15px}.card-body .ctype span{font-size:8px}footer{padding:24px 20px}}
+@media(max-width:400px){.grid{grid-template-columns:1fr}.thumb{height:270px}.hero h2{font-size:29px}}
+
+/* The supplied woodcut, printed in one ink using its original luminance. */
+:root{--paper:#fafaf8;--paper-2:#f0f0ec;--card:#ffffff;--ink:#24251e;--ink-soft:#4b4d46;--muted:#696d64;--line:#dedfd8;--line-strong:#b9bdb2;--terra:#9c392d;--olive:#5a633e}
+header.masthead{border-bottom:3px solid var(--ink);padding-top:25px;padding-bottom:23px}
+.mast-title h1{font-family:Georgia,serif;font-weight:700;font-size:34px;letter-spacing:-1.4px}
+.mast-sub{text-transform:uppercase;letter-spacing:.16em;font-size:9px}
+.hero{padding-top:40px;padding-bottom:36px}
+.hero-layout{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:48px;align-items:center}
+.hero-inner{max-width:none}
+.hero .eyebrow{color:var(--terra);font-weight:700;letter-spacing:.13em;font-size:10px}
+.hero h2{font-family:Georgia,serif;font-weight:700;font-size:clamp(38px,4.3vw,62px);line-height:1.04;letter-spacing:-.045em;margin:15px 0 20px}
+.hero p.lede{max-width:560px;font-size:15px;line-height:1.6;margin-bottom:24px}
+.hero-art{display:flex;align-items:center;justify-content:center;min-width:0;padding-bottom:20px}
+.pomegranate-woodcut{display:block;width:100%;aspect-ratio:2048/1688;background:var(--terra);mask-image:url('assets/pomegranate-woodcut.png');mask-mode:luminance;mask-size:contain;mask-repeat:no-repeat;mask-position:center}
+.searchbox{border:2px solid var(--ink);border-radius:0;background:var(--card)}
+.searchbox button.go{font-weight:600}
+.source-overview{border-top:0;padding-top:0}
+.coverage-heading{padding-top:17px;border-top:3px solid var(--ink)}
+.coverage-heading h2,.browse-heading h2{font-family:Georgia,serif;font-weight:700;letter-spacing:-.035em}
+.source-cards{border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.source-name{font-family:Georgia,serif;font-weight:700;font-size:22px;letter-spacing:-.03em}
+.source-count{font-weight:600}
+.tab.active{font-weight:700;border-bottom-width:3px}
+.card-body h3{font-family:Georgia,serif;font-weight:600;letter-spacing:-.025em}
+.facet-head h3{font-family:Georgia,serif;font-weight:700;font-size:23px}
+.footer-brand{font-weight:700}
+@media(max-width:1000px){.hero-layout{grid-template-columns:minmax(0,1fr) 210px;gap:30px}.hero h2{font-size:46px}}
+@media(max-width:700px){.hero-layout{grid-template-columns:minmax(0,1fr) 125px;gap:18px}.hero-inner{display:contents}.hero .eyebrow{grid-column:1/-1;margin:0}.hero h2{grid-column:1;font-size:39px;margin:0}.hero-art{grid-column:2;grid-row:2;padding:0}.hero p.lede,.hero .searchbox,.hero-meta,.chips{grid-column:1/-1;margin:0}.hero p.lede{margin-top:2px}.hero .searchbox{width:100%}.hero-meta{margin-top:-6px}.chips{margin-top:0}.mast-title h1{font-size:28px}.hero{padding-top:27px;padding-bottom:28px}}
+@media(max-width:390px){.hero-layout{grid-template-columns:minmax(0,1fr) 92px;gap:17px 12px}.hero h2{font-size:34px}}
+
+/* Browse modes are primary navigation, available before the introduction. */
+.hero[hidden],.source-overview[hidden]{display:none}
+.tabsbar{border-top:0}
+@media(max-width:640px){.tabsbar .tabs{display:flex;flex-wrap:wrap;overflow:visible;padding:0 10px;gap:0}.tabsbar .tab{font-size:11px;padding:14px 9px;letter-spacing:0;white-space:nowrap}.tab .tcount{margin-left:4px}}
+
+/* Woodcut identity on a neutral, uncoated white ground. */
+.concept-bar,footer{background:var(--paper-2)}
+.hero-layout{display:block}
+.hero-inner{display:block;max-width:850px}
+.brand-mark{width:74px;flex:none}
+.brand{gap:17px}
+.thumb{background:var(--paper-2)}
+@media(max-width:700px){.hero .eyebrow{margin-bottom:13px}.hero h2{margin:0 0 20px}.hero p.lede{margin:0 0 23px}.hero-meta{margin-top:11px}.chips{margin-top:18px}.brand-mark{width:56px}.brand{gap:11px}.mast-title h1{font-size:27px}.mast-sub{font-size:8px;letter-spacing:.12em}}
+@media(max-width:390px){.brand-mark{width:45px}.mast-title h1{font-size:24px}.mast-row{gap:8px}.saved-btn{padding:7px}.brand{gap:8px}}
+
+.date-interpretation{display:block;margin-top:5px;font-size:11px;color:var(--terra)}
+.field small{font-size:12px;color:var(--muted);line-height:1.6}.field input[type="search"]{margin-bottom:10px}
+
+.adv-modal{display:flex;flex-direction:column;max-height:calc(100dvh - 40px);min-height:0;background:var(--card)}
+.adv-body{overflow-y:auto;min-height:0;flex:1}
+.adv-head,.adv-foot{flex:none;background:var(--paper-2)}
+@media(max-width:640px){.adv-modal{max-height:100dvh;min-height:0;height:100dvh}}

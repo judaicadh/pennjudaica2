@@ -235,6 +235,10 @@ def parse_year(date_text):
         c2 = int(m.group(2)) if m.group(2) else c1
         # midpoint of the (earliest) century, e.g. 9th -> 850
         return (c1 - 1) * 100 + 50 if c1 == c2 else ((c1 - 1) * 100 + (c2 * 100)) // 2
+    # Prefer an explicit Gregorian equivalent to a Hebrew/Seleucid year.
+    equivalent = re.search(r"=\s*(1[0-9]{3}|20[0-9]{2})", s)
+    if equivalent:
+        return int(equivalent.group(1))
     yrs = re.findall(r"\b(\d{3,4})\b", s)
     if yrs:
         return int(yrs[0])

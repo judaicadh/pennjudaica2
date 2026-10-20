@@ -20,12 +20,15 @@
 # already happened in the harvester.
 # ============================================================================
 
-import os, sys, json, glob, hashlib, datetime, argparse
+import os, sys, json, glob, hashlib, datetime, argparse, re
+from metadata import enrich
+from zoneinfo import ZoneInfo
 
 # Source key -> display label, system grouping, and chip color in the UI.
 # Every `source` an item can carry MUST appear here, or the front end's
 # SOURCES[it.source].color reference crashes.
 SOURCE_LABELS = {
+    "digitalcollections": {"label": "Penn Digital Collections", "system": "Digital Collections", "color": "#315d70"},
     # OPenn sources
     "zucker":      {"label": "Zucker Ketubah Collection",          "system": "OPenn",        "color": "#a8492b"},
     "ljs":         {"label": "Schoenberg Manuscripts",             "system": "OPenn",        "color": "#6e7637"},
@@ -51,6 +54,8 @@ def stable_id(item):
     (the front end's `#item=<id>` keeps working across harvests)."""
     if item.get("system") == "OPenn":
         key = "openn:%s:%s" % (item.get("openn_repo", ""), item.get("openn_obj", ""))
+    elif item.get("system") == "DigitalCollections":
+        key = "digital:%s" % item["digital_id"]
     elif item.get("system") == "FindingAids":
         key = "fa:%s" % item.get("fa_id", "")
     else:
@@ -69,10 +74,15 @@ def dedupe_key(item):
     # 2. OPenn object identifier — only an OPenn item can carry this
     if item.get("system") == "OPenn":
         keys.append(("openn", item.get("openn_repo", "") + "/" + item.get("openn_obj", "")))
-    # 3. Call number + source (Finding Aid call no often matches OPenn callno)
+    # 3. Penn digital-item shelfmark; collection guides stay separate.
     cn = (item.get("callno") or "").strip().lower()
     if cn and cn != item.get("fa_id", "").lower():  # don't dedupe on a fallback id
-        keys.append(("callno", cn))
+        # Finding aids describe collections, not the same intellectual entity as
+        # an individual digitized item. Shelfmarks also repeat across repositories.
+        if item.get("system") == "OPenn":
+            penn = item.get("source") in {"cajs", "genizah", "ljs", "zucker", "mikveh", "pennmuseum"}
+            if penn:
+                keys.append(("penn-item-callno", cn))
     return keys
 
 
@@ -87,6 +97,8 @@ def merge(a, b):
         cur = out.get(k)
         if cur in (None, "", [], 0, "Unknown", "n.d."):
             out[k] = v
+        elif k in ("collections", "types", "languages", "formats", "regions"):
+            out[k] = list(dict.fromkeys((cur or []) + (v or [])))
         elif k == "desc" and isinstance(v, str) and len(v) > len(cur or ""):
             out[k] = v
         elif k == "pages" and isinstance(v, list) and len(v) > len(cur or []):
@@ -104,7 +116,7 @@ def merge(a, b):
 def attach_collection_label(item):
     """Add the display `collection` string from SOURCE_LABELS."""
     s = SOURCE_LABELS.get(item.get("source"), SOURCE_LABELS["other"])
-    item["collection"] = s["label"]
+    item["collection"] = item.get("collection") or s["label"]
     return item
 
 
@@ -130,14 +142,21 @@ def build(raw_dir, out_path):
     items_by_id = {}   # final id -> item
 
     for path, item in load_raw(raw_dir):
+        # scripts/synth_corpus.py emits -syn identifiers for load testing.
+        if "-syn" in item.get("openn_obj", "") or item.get("synthetic"):
+            continue
         # Validate source key — anything we can't label, the front end can't render
         if item.get("source") not in SOURCE_LABELS:
             print("  ! %s: unknown source key %r — falling back to 'other'"
                   % (path, item.get("source")), file=sys.stderr)
             item["source"] = "other"
 
+        equivalent = re.search(r"=\s*(1[0-9]{3}|20[0-9]{2})", item.get("dateText", ""))
+        if equivalent:
+            item["year"] = int(equivalent.group(1))
         item["id"] = stable_id(item)
         attach_collection_label(item)
+        enrich(item)
 
         # Dedupe against everything we've already seen.
         matched = None
@@ -152,6 +171,8 @@ def build(raw_dir, out_path):
             for k in dedupe_key(merged):
                 by_key[k] = merged
         else:
+            if item["id"] in items_by_id:
+                raise ValueError("Stable ID collision between distinct records: %s" % item["id"])
             items_by_id[item["id"]] = item
             for k in dedupe_key(item):
                 by_key[k] = item
@@ -178,8 +199,9 @@ def build(raw_dir, out_path):
     # and is fetched only when the user opens an item modal.
     HEAVY = ("pages",)
     SEARCH_FIELDS = (                           # everything else stays in items.json
-        "id", "system", "source", "collection",
-        "title", "creator", "year", "dateText",
+        "id", "system", "source", "collection", "manifest", "rights", "digital_id", "manifestStatus",
+        "title", "creator", "year", "dateText", "yearStart", "yearEnd", "dateStatus",
+        "collections", "types", "formats", "languages", "regions",
         "place", "region", "lat", "lng",
         "lang", "type", "iiif", "img",
         "srcUrl", "callno", "desc",
@@ -215,11 +237,18 @@ def build(raw_dir, out_path):
             try: os.remove(os.path.join(records_dir, stale))
             except OSError: pass
 
+    audit_path = os.path.join(raw_dir, "digitalcollections.audit.json")
+    coverage = {}
+    if os.path.exists(audit_path):
+        with open(audit_path, encoding="utf-8") as audit_file:
+            coverage["DigitalCollections"] = json.load(audit_file)
+
     payload = {
+        "coverage": coverage,
         "sources": sources,
         "items": light_items,
         "featured": featured,
-        "harvestedAt": datetime.date.today().isoformat(),
+        "harvestedAt": datetime.datetime.now(ZoneInfo("America/New_York")).date().isoformat(),
     }
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)

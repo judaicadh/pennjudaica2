@@ -53,7 +53,7 @@ the union of four passes, deduped by record ID:
    `?q=zionism`, `?q=sephardic`, `?q=ladino`, etc.
 2. **Language facet** — `f[languages_ssim][]=Hebrew`, `Yiddish`, `Ladino`,
    `Judeo-Arabic`, `Aramaic`.
-3. **Repository allowlist** — Kislak Center + Katz Center for Advanced
+3. **Repository allowlist** — Katz Center for Advanced
    Judaic Studies (every collection at the Katz Center is in scope by
    definition; the repository pass catches collections that aren't tagged
    with an explicit "Jews" subject heading).
@@ -89,7 +89,7 @@ Reads every `raw/*.jsonl`, runs the cross-source dedupe key cascade:
 
 1. IIIF manifest URL (strongest — exact match means the same physical item)
 2. OPenn object identifier (`<repo>/<obj>`)
-3. Call number + source
+3. Penn digital-item shelfmark (excluding collection-level finding aids)
 
 When two records merge, the resulting item keeps the richer field from
 each side (OPenn gives images and pages; the Finding Aid gives biography,
@@ -121,15 +121,71 @@ discovery pass, not total).
 
 ## Scheduled rebuilds
 
-`.github/workflows/harvest.yml` runs the whole pipeline every Monday at
-05:00 UTC and commits the refreshed `items.json` + `records/` back to
-`main`. Netlify watches `main` and redeploys. Manually triggerable via
-the Actions tab.
+`.github/workflows/harvest.yml` schedules a full refresh every night at **2:17 a.m.
+America/New_York** (including daylight-saving adjustments). GitHub may delay scheduled
+runs. It also supports manual runs in the Actions tab. Each run starts with fresh raw
+data and refreshes all three sources without sample limits.
 
-## Future: Colenda
+Before publication, `scripts/nightly_site.py` checks unique IDs, all three sources,
+complete Digital Collections scope counts, and page-data files. A source losing more
+than 20% of its previous records stops publication for review. A failed harvest or
+validation leaves the published site unchanged. Coverage audits are retained for 30 days.
+Only public static assets are packaged; raw data, caches, and development files are excluded.
 
-Colenda exposes an OAI-PMH endpoint plus IIIF manifests for digitized
-items. A future `harvest_colenda.py` would pull only Judaica-relevant
-OAI sets (Ketubot, Schoenberg Manuscripts, etc.), emit JSONL, and slot
-into the same `build.py` pipeline without other changes. Franklin (the
-catalog) is intentionally out of scope; see `SCALING.md` §8.
+On the default branch, a successful run commits the index and page data, then deploys
+its validated package directly to GitHub Pages. A token-created commit does not need
+to trigger another workflow. Enable Actions, workflow write access, and Pages with
+**GitHub Actions** as its source when publishing this revised site.
+
+**Current status:** prepared locally, not active. The existing GitHub remote contains
+a different Astro site. Publishing the revised site and installing this workflow on
+the intended default branch is a separate step; local preview changes do not enable it.
+
+## Penn Digital Collections — `harvest_digitalcollections.py`
+
+Penn’s current Digital Collections site replaces Colenda. The importer uses the
+observed public `/items.json` JSON search response, `/items/<uuid>.json` detail
+response, and the public `/v1/items/<uuid>?assets=true` repository response
+for complete metadata and ordered assets. IIIF Presentation 3 manifests are at
+`https://digitalrepository.library.upenn.edu/iiif/items/<uuid>/manifest`.
+
+The importer paginates the entire collection facet, selects explicitly Judaica-related
+collection names, and adds configured Kaplan, Leeser, Morais, Cairo Genizah, and
+Gratz-Mandell scopes. Seventeen keyword passes find related items elsewhere.
+Every result page is fetched using Penn’s supported ordering options. Since tied
+values can repeat between pages, independent orderings recover pagination gaps. Each scope’s
+unique-ID count must equal the source’s reported result total. Final import IDs
+must match the union of discovered IDs exactly. An incomplete run does not replace
+the last successful raw file.
+
+`--limit N` creates a sample; omit it for the full configured scope. Up to four
+workers download metadata and manifests, with retries and per-item cache files.
+`--resume` reuses completed scope/discovery checkpoints after interruption. Ordinary
+runs rediscover scope membership and reuse the cached item metadata. Delete the
+item cache when a full metadata refresh is needed. A 403/404 image manifest retains
+the item’s metadata and source link rather than discarding the item.
+
+`raw/digitalcollections.audit.json` records source totals, discovered counts, unique
+imported counts, scope definitions, timestamps, and unavailable manifests. The build
+embeds this report in `items.json`; the interface exposes it under collection coverage.
+This verifies the configured scope; it does not guarantee that Penn’s descriptive
+metadata identifies every Judaica-related item. Finding aids still use a 30-record
+sample, and OPenn uses the existing harvested real records.
+
+The normalized metadata retains original collection labels, source URLs, rights,
+and a manifest URL. IIIF canvas images become lazy-loaded record shards. The
+importer writes atomically, retaining the last successful file on request errors.
+
+### Current corrections
+
+The build ignores the `-syn` identifiers emitted by the scale-test script.
+Collection-level finding aids are not deduplicated against item-level records by
+call number. Distinct Digital Collections UUIDs do not merge on a shared shelfmark, since
+archival components often share their parent collection’s call number. OPenn
+shelfmark matching remains limited to Penn records. Explicit Gregorian equivalents
+in date descriptions take precedence over Hebrew/Seleucid numbers.
+
+Finding-aid titles are extracted from the record heading rather than the site’s
+masthead. Whole-repository discovery is restricted to Katz; Kislak remains
+included through Judaica keyword/language discovery. The workflow now commits
+`records/` alongside the index so newly harvested pages are deployed together.
